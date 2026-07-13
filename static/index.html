@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RegulAI — Regulatory Intelligence</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+
+<body>
+  <div class="seal-rings tr" aria-hidden="true"></div>
+  <div class="seal-rings bl" aria-hidden="true"></div>
+
+  <!-- Auth gate: shown until a valid session token is confirmed via /api/auth/me -->
+  <div id="authGate" class="auth-gate">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2 3 6v6c0 5 3.8 9 9 10 5.2-1 9-5 9-10V6l-9-4z" />
+          <path d="M9 12.5l2 2 4-4.5" />
+        </svg>
+        <span>RegulAI</span>
+      </div>
+      <div class="auth-tabs">
+        <button type="button" class="auth-tab active" data-mode="login">Log In</button>
+        <button type="button" class="auth-tab" data-mode="signup">Sign Up</button>
+      </div>
+      <form id="authForm">
+        <input type="email" id="authEmail" class="auth-input" placeholder="Email address" autocomplete="email"
+          required />
+        <input type="password" id="authPassword" class="auth-input" placeholder="Password"
+          autocomplete="current-password" required />
+        <div class="auth-error" id="authError"></div>
+        <button type="submit" class="auth-submit" id="authSubmitBtn">Log In</button>
+      </form>
+      <div class="auth-hint" id="authHint">Don't have an account? <span data-mode="signup">Sign up</span></div>
+    </div>
+  </div>
+
+  <!-- Schedule settings modal: configure automatic weekly/interval scraping -->
+  <div id="scheduleModal" class="auth-gate hidden">
+    <div class="auth-card schedule-card">
+      <div class="auth-brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <line x1="16" y1="2" x2="16" y2="6" />
+          <line x1="8" y1="2" x2="8" y2="6" />
+          <line x1="3" y1="10" x2="21" y2="10" />
+        </svg>
+        <span>Automatic Scraping</span>
+      </div>
+
+      <label class="sched-toggle-row">
+        <span>Enable scheduled scraping</span>
+        <input type="checkbox" id="schedEnabled" />
+      </label>
+
+      <div id="schedFields" class="sched-fields">
+        <div class="sched-row">
+          <label for="schedType">Frequency</label>
+          <select id="schedType" class="auth-input">
+            <option value="cron">Fixed day &amp; time</option>
+            <option value="interval">Every N hours</option>
+          </select>
+        </div>
+
+        <div id="schedCronFields">
+          <div class="sched-row">
+            <label for="schedDay">Day</label>
+            <select id="schedDay" class="auth-input">
+              <option value="*">Every day</option>
+              <option value="mon">Monday</option>
+              <option value="tue">Tuesday</option>
+              <option value="wed">Wednesday</option>
+              <option value="thu">Thursday</option>
+              <option value="fri">Friday</option>
+              <option value="sat">Saturday</option>
+              <option value="sun">Sunday</option>
+            </select>
+          </div>
+          <div class="sched-row">
+            <label for="schedHour">Time</label>
+            <div class="sched-time">
+              <select id="schedHour" class="auth-input"></select>
+              <span>:</span>
+              <select id="schedMinute" class="auth-input">
+                <option value="0">00</option>
+                <option value="15">15</option>
+                <option value="30">30</option>
+                <option value="45">45</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div id="schedIntervalFields" class="sched-hide">
+          <div class="sched-row">
+            <label for="schedIntervalHours">Every</label>
+            <div class="sched-time">
+              <input type="number" id="schedIntervalHours" class="auth-input" min="1" step="1" value="24" />
+              <span>hours</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sched-next" id="schedNextRun"></div>
+      <div class="auth-error" id="schedError"></div>
+
+      <div class="sched-actions">
+        <button type="button" class="auth-submit sched-cancel" id="schedCancelBtn">Cancel</button>
+        <button type="button" class="auth-submit" id="schedSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app">
+    <!-- Visible only while the sidebar is collapsed, floats over the chat to reopen it -->
+    <button id="reopenBtn" class="reopen-btn" title="Expand sidebar">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
+    </button>
+
+    <aside id="sidebar">
+      <div class="status-strip">
+        <button id="foldBtn" class="fold-btn" title="Collapse sidebar">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        <div class="brand-mark">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 2 3 6v6c0 5 3.8 9 9 10 5.2-1 9-5 9-10V6l-9-4z" />
+            <path d="M9 12.5l2 2 4-4.5" />
+          </svg>
+          <span class="status-strip-label">RegulAI</span>
+        </div>
+      </div>
+
+      <!-- Chat threads: persisted server-side per account -->
+      <div class="chat-hist-wrap">
+        <button class="new-chat-btn" id="newChatBtn">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Chat
+        </button>
+        <div class="chat-list" id="chatList"></div>
+      </div>
+
+      <div class="foldable-sec sources-sec" id="sourcesSec">
+        <button type="button" class="sec-label sec-toggle" data-target="sourcesSec">
+          <span>Sources</span>
+          <svg class="sec-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <div class="sec-body">
+          <div class="upload-wrap">
+            <div class="drop" id="dropZone">
+              <div class="drop-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <p><b>Click to upload</b> or drag & drop<br />PDF files</p>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf" multiple />
+          </div>
+          <div class="sources" id="sourcesList">
+            <div class="no-src" id="noSrc">No documents yet</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add-to-database: persists a PDF into MongoDB + embeds it, so it's
+           searchable for everyone via any DB chat above — distinct from the
+           "Sources" drop zone, which only reads a PDF locally for a one-off,
+           unsaved chat session. -->
+      <div class="foldable-sec db-sec" id="dbSec">
+        <button type="button" class="sec-label sec-toggle" data-target="dbSec">
+          <span>Add to Database</span>
+          <svg class="sec-chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        <div class="sec-body">
+          <div class="db-upload-wrap">
+            <div class="drop drop-small" id="dbDropZone">
+              <div class="drop-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <p><b>Upload new to DB</b></p>
+            </div>
+            <input type="file" id="dbFileInput" accept=".pdf" />
+            <div class="db-upload-status" id="dbUploadStatus"></div>
+
+            <div class="scrape-row">
+              <button class="scrape-btn" id="scrapeBtn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round" id="scrapeBtnIcon">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+                <span id="scrapeBtnLabel">New Notifications</span>
+              </button>
+              <button class="schedule-gear-btn" id="scheduleGearBtn" title="Schedule automatic scraping">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+              </button>
+            </div>
+            <div class="schedule-status" id="scheduleStatusLine"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+
+    <main id="main">
+      <div class="topbar">
+        <div>
+          <div class="tb-title" id="tbTitle">Select a chat</div>
+          <div class="tb-sub" id="tbSub">Start a new chat to begin</div>
+        </div>
+        <div class="topbar-right">
+          <div class="badge">Gemini 2.5 Flash</div>
+          <!-- Standalone logout button: always visible, no dropdown, no
+               dependency on any style.css rule (all styling is inline)
+               and no dependency on any other JS state (menu open/closed,
+               etc). If the dropdown-based logout ever breaks again, this
+               one has nothing else that can go wrong with it. -->
+          <button id="logoutBtnStandalone" type="button" title="Log out"
+            style="all: unset; box-sizing: border-box; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; border: 1px solid #ef4444; color: #ef4444; font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 600; background: rgba(239, 68, 68, 0.10); pointer-events: auto; position: relative; z-index: 100;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Log out
+          </button>
+          <div class="profile-wrap">
+            <button class="profile-btn" id="profileBtn" title="Account">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                <circle cx="12" cy="7" r="4" />
+              </svg>
+            </button>
+            <div class="profile-menu" id="profileMenu">
+              <div class="profile-menu-email" id="profileEmailLabel"></div>
+              <button class="profile-menu-logout" id="logoutBtn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                Log out
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="procBar">
+        <div class="spin"></div><span id="procMsg">Loading…</span>
+      </div>
+      <div id="chat"></div>
+      <div class="input-bar">
+        <div class="attach-chip-wrap" id="attachChipWrap"></div>
+        <div class="inp-wrap">
+          <button id="attachBtn" class="attach-btn" title="Attach a PDF to this chat" type="button" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48" />
+            </svg>
+          </button>
+          <input type="file" id="attachFileInput" accept=".pdf" />
+          <textarea id="msgInput" rows="1" placeholder="Ask anything about the document…"></textarea>
+          <button id="sendBtn" disabled>
+            <svg id="sendIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+            <svg id="stopIcon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+              <rect x="5" y="5" width="14" height="14" rx="2" />
+            </svg>
+          </button>
+        </div>
+        <div class="hint">Enter to send · Shift+Enter for new line</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // Guarded: if the pdf.js CDN script (loaded above) fails for any reason
+    // (flaky network, ad-blocker, corporate firewall, CDN outage), this used
+    // to throw a bare ReferenceError right here and silently kill EVERY
+    // handler defined below it in this same script block — including login,
+    // logout, and the whole chat list, with no visible error to the user.
+    // Now a pdf.js failure only disables PDF upload (guarded at its two call
+    // sites below); everything else keeps working.
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    } catch (e) {
+      console.error('pdf.js failed to load — PDF upload will be unavailable:', e);
+    }
+    function pdfLibReady() {
+      if (typeof pdfjsLib !== 'undefined') return true;
+      alert('The PDF reading library failed to load (check your connection and refresh the page). Everything except PDF upload should still work.');
+      return false;
+    }
+
+    // `sources` holds two kinds of entries:
+    //  - chat threads (isChat:true, isDb:true) — persisted server-side via
+    //    /api/chats, rendered in the "chat-list" sidebar section
+    //  - local PDF sources (isChat:false) — read client-side with pdf.js,
+    //    never sent to the server except as inline chat context; rendered
+    //    in the "Sources" sidebar section, unchanged from before
+    let sources = [], activeId = null, busy = false;
+    let currentAbort = null;
+
+    // ── Auth state ───────────────────────────────────────────────────────────
+    let authToken = localStorage.getItem('regulai_token') || null;
+    let authEmail = localStorage.getItem('regulai_email') || null;
+    function authHeaders() { return authToken ? { Authorization: `Bearer ${authToken}` } : {}; }
+
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const srcList = document.getElementById('sourcesList');
+    const noSrc = document.getElementById('noSrc');
+    const chatList = document.getElementById('chatList');
+    const chat = document.getElementById('chat');
+    const msgInput = document.getElementById('msgInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const sendIcon = document.getElementById('sendIcon');
+    const stopIcon = document.getElementById('stopIcon');
+    const tbTitle = document.getElementById('tbTitle');
+    const tbSub = document.getElementById('tbSub');
+    const procBar = document.getElementById('procBar');
+    const procMsg = document.getElementById('procMsg');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+    dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('over'); loadFiles([...e.dataTransfer.files]); });
+    fileInput.addEventListener('change', () => { loadFiles([...fileInput.files]); fileInput.value = ''; });
+
+    async function loadFiles(files) {
+      for (const f of files) { if (f.name.toLowerCase().endsWith('.pdf')) await extractPDF(f); }
+    }
+
+    async function extractPDF(file) {
+      if (!pdfLibReady()) return;
+      showProc(`Reading "${file.name}"…`);
+      try {
+        const ab = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          showProc(`Extracting page ${i} / ${pdf.numPages}…`);
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += `\n[Page ${i}]\n` + content.items.map(it => it.str).join(' ') + '\n';
+        }
+        const src = { id: Date.now() + Math.random(), name: file.name.replace(/\.pdf$/i, ''), pages: pdf.numPages, text, messages: [], isChat: false };
+        sources.push(src);
+        renderSourcesList();
+        setActive(src.id);
+      } catch (e) { alert('Could not read PDF: ' + e.message); }
+      hideProc();
+    }
+
+    function renderSourcesList() {
+      const pdfSources = sources.filter(s => !s.isChat);
+      noSrc.style.display = pdfSources.length ? 'none' : 'block';
+      srcList.querySelectorAll('.src-item').forEach(el => el.remove());
+      const ICON_PDF = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+      const ICON_DEL = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      pdfSources.forEach(s => {
+        const el = document.createElement('div');
+        el.className = 'src-item' + (s.id === activeId ? ' active' : '');
+        el.innerHTML = `
+          <div class="src-icon">${ICON_PDF}</div>
+          <div class="src-info">
+            <div class="src-name" title="${s.name}">${s.name}</div>
+            <div class="src-meta">${s.pages} pages · ${(s.text.length / 1000).toFixed(0)}k chars</div>
+          </div>
+          <button class="src-del" title="Remove">${ICON_DEL}</button>`;
+        el.querySelector('.src-del').onclick = e => { e.stopPropagation(); removeSrc(s.id); };
+        el.onclick = () => setActive(s.id);
+        srcList.appendChild(el);
+      });
+    }
+
+    function renderChatList() {
+      const chatSources = sources.filter(s => s.isChat);
+      chatList.querySelectorAll('.chat-item').forEach(el => el.remove());
+      const ICON_CHAT = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+      const ICON_PIN = '<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3V5h18z"/></svg>';
+      const ICON_DEL = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      chatSources.forEach(s => {
+        const el = document.createElement('div');
+        el.className = 'chat-item' + (s.id === activeId ? ' active' : '');
+        el.innerHTML = `
+          <div class="src-icon">${s.pinned ? ICON_PIN : ICON_CHAT}</div>
+          <div class="src-info">
+            <div class="src-name" title="${esc(s.name)}">${esc(s.name)}</div>
+          </div>
+          ${s.pinned ? '' : `<button class="src-del" title="Delete chat">${ICON_DEL}</button>`}`;
+        if (!s.pinned) el.querySelector('.src-del').onclick = e => { e.stopPropagation(); deleteChat(s.id); };
+        el.onclick = () => setActive(s.id);
+        chatList.appendChild(el);
+      });
+    }
+
+    function removeSrc(id) {
+      sources = sources.filter(s => s.id !== id);
+      if (activeId === id) activeId = sources.length ? sources[0].id : null;
+      renderSourcesList(); renderChatList(); renderChat();
+    }
+
+    async function setActive(id) {
+      activeId = id;
+      renderSourcesList(); renderChatList();
+      const s = getActive();
+      if (s) {
+        tbTitle.textContent = s.name;
+        if (s.isChat) {
+          tbSub.textContent = 'CBIC Notifications & Tariff Schedule · Ready';
+          msgInput.placeholder = 'Ask about any CBIC notification or tariff chapter…';
+          if (s.messages === null) {          // not loaded yet — fetch from the server
+            showProc(`Loading "${s.name}"…`);
+            try {
+              const res = await fetch(`/api/chats/${s.chat_id}`, { headers: authHeaders() });
+              const data = await res.json();
+              s.messages = data.messages || [];
+            } catch { s.messages = []; }
+            hideProc();
+          }
+        } else {
+          tbSub.textContent = `${s.pages} pages · Ready`;
+          msgInput.placeholder = `Ask anything about "${s.name}"…`;
+        }
+        sendBtn.disabled = false;
+        // Attach-PDF-to-chat is only offered inside a DB chat — a local PDF
+        // "Source" already IS a single uploaded document with its own full
+        // context, so there's nothing meaningful to attach on top of it.
+        attachBtn.disabled = !s.isChat;
+        attachBtn.title = s.isChat ? 'Attach a PDF to this chat' : 'Upload PDFs from the Sources panel instead';
+      } else {
+        attachBtn.disabled = true;
+      }
+      renderAttachChip();
+      renderChat();
+    }
+
+    function getActive() { return sources.find(s => s.id === activeId) || null; }
+
+    // ── Attach a PDF directly inside a chat (client-side only — not saved
+    // to the database, and not persisted across a refresh, same as any
+    // other unsaved browser state) ──────────────────────────────────────
+    const attachBtn = document.getElementById('attachBtn');
+    const attachFileInput = document.getElementById('attachFileInput');
+    const attachChipWrap = document.getElementById('attachChipWrap');
+
+    attachBtn.onclick = () => { if (!attachBtn.disabled) attachFileInput.click(); };
+    attachFileInput.addEventListener('change', async () => {
+      const file = attachFileInput.files[0];
+      attachFileInput.value = '';
+      if (!file) return;
+      const s = getActive();
+      if (!s || !s.isChat) return;
+      if (!file.name.toLowerCase().endsWith('.pdf')) { alert('Only PDF files are supported'); return; }
+      if (!pdfLibReady()) return;
+      showProc(`Reading "${file.name}"…`);
+      try {
+        const ab = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          showProc(`Extracting page ${i} / ${pdf.numPages}…`);
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += `\n[Page ${i}]\n` + content.items.map(it => it.str).join(' ') + '\n';
+        }
+        s.attachedPdf = { name: file.name.replace(/\.pdf$/i, ''), text };
+        renderAttachChip();
+      } catch (e) { alert('Could not read PDF: ' + e.message); }
+      hideProc();
+    });
+
+    function renderAttachChip() {
+      attachChipWrap.innerHTML = '';
+      const s = getActive();
+      if (!s || !s.isChat || !s.attachedPdf) return;
+      const chip = document.createElement('div');
+      chip.className = 'attach-chip';
+      chip.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span title="${esc(s.attachedPdf.name)}">${esc(s.attachedPdf.name)}</span>
+        <button title="Remove attachment">✕</button>`;
+      chip.querySelector('button').onclick = () => { delete s.attachedPdf; renderAttachChip(); };
+      attachChipWrap.appendChild(chip);
+    }
+
+    // ── Chat thread management (persisted) ──────────────────────────────────
+    async function loadChats() {
+      try {
+        const res = await fetch('/api/chats', { headers: authHeaders() });
+        if (!res.ok) throw new Error('failed to load chats');
+        const data = await res.json();
+        let chats = data.chats || [];
+        if (chats.length === 0) {
+          // Brand-new account — create the pinned default chat automatically
+          const created = await createChat();
+          chats = [created];
+        }
+        const chatSources = chats.map(c => ({
+          id: 'chat:' + c.chat_id, chat_id: c.chat_id, name: c.title,
+          isChat: true, isDb: true, pinned: !!c.pinned, messages: null,
+        }));
+        sources = [...chatSources, ...sources.filter(s => !s.isChat)];
+        renderChatList();
+        const pinned = chatSources.find(c => c.pinned) || chatSources[0];
+        if (pinned) setActive(pinned.id); else renderChat();
+      } catch (e) {
+        console.error('loadChats failed', e);
+      }
+    }
+
+    async function createChat() {
+      const res = await fetch('/api/chats', { method: 'POST', headers: authHeaders() });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || 'Could not create chat');
+      return data;
+    }
+
+    document.getElementById('newChatBtn').onclick = async () => {
+      try {
+        const c = await createChat();
+        const src = { id: 'chat:' + c.chat_id, chat_id: c.chat_id, name: c.title, isChat: true, isDb: true, pinned: false, messages: [] };
+        sources.unshift(src);
+        renderChatList();
+        setActive(src.id);
+      } catch (e) { alert(e.message); }
+    };
+
+    async function deleteChat(id) {
+      const s = sources.find(x => x.id === id);
+      if (!s) return;
+      if (!confirm(`Delete "${s.name}"? This can't be undone.`)) return;
+      try {
+        const res = await fetch(`/api/chats/${s.chat_id}`, { method: 'DELETE', headers: authHeaders() });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Delete failed');
+        sources = sources.filter(x => x.id !== id);
+        if (activeId === id) {
+          const next = sources.find(x => x.isChat) || sources[0] || null;
+          if (next) setActive(next.id); else { activeId = null; renderChatList(); renderChat(); }
+        } else {
+          renderChatList();
+        }
+      } catch (e) { alert(e.message); }
+    }
+
+    async function saveChat(s) {
+      if (!s || !s.isChat) return;
+      try {
+        const res = await fetch(`/api/chats/${s.chat_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({ messages: s.messages })
+        });
+        const data = await res.json();
+        if (res.ok && data.title && data.title !== s.name) {
+          s.name = data.title;
+          renderChatList();
+          if (activeId === s.id) tbTitle.textContent = s.name;
+        }
+      } catch (e) { console.error('saveChat failed', e); }
+    }
+
+    const CHIPS_PDF = ['Summarize this document', 'What are the key findings?', 'List the main topics covered', 'What conclusions are drawn?', 'Are there any important statistics?'];
+    const CHIPS_DB = ['What is the HSN code for live animals?', 'Show me chapter 29 tariff items', 'Any recent anti-dumping duty notifications?', 'What are the GST exemptions on textiles?'];
+
+    function renderChat() {
+      chat.innerHTML = '';
+      const s = getActive();
+      if (!s) {
+        chat.innerHTML = `<div class="empty"><div class="empty-ico"><svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg></div><div class="empty-t">No chat selected</div><div class="empty-s">Start a new chat, or upload a PDF from the sidebar.</div></div>`;
+        sendBtn.disabled = true; tbTitle.textContent = 'Select a chat'; tbSub.textContent = 'Start a new chat to begin';
+        return;
+      }
+      if (s.messages === null || s.messages.length === 0) {
+        const d = document.createElement('div');
+        d.className = 'sugg-wrap';
+        d.innerHTML = `<div class="sugg-title">What would you like to know?</div><div class="chips"></div>`;
+        const chipsArr = s.isChat ? CHIPS_DB : CHIPS_PDF;
+        chipsArr.forEach(c => { const chip = document.createElement('div'); chip.className = 'chip'; chip.textContent = c; chip.onclick = () => sendMsg(c); d.querySelector('.chips').appendChild(chip); });
+        chat.appendChild(d); return;
+      }
+      s.messages.forEach(m => addBubble(m.role, m.content, false, m.sources));
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addBubble(role, content, isNew, sources) {
+      const d = document.createElement('div');
+      d.className = `msg ${role}`;
+      const av = role === 'ai'
+        ? `<div class="av ai"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div>`
+        : `<div class="av user"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>`;
+      let srcHtml = '';
+      if (sources && sources.length) {
+        srcHtml = '<div class="src-cites">' + sources.map(src => {
+          const label = (src.notification_no && src.notification_no !== 'N/A') ? src.notification_no : (src.title || 'source');
+          return src.pdf_url
+            ? `<a href="${src.pdf_url}" target="_blank" class="cite-pill">${esc(label)}</a>`
+            : `<span class="cite-pill">${esc(label)}</span>`;
+        }).join('') + '</div>';
+      }
+      d.innerHTML = `${av}<div class="bubble">${role === 'ai' ? md(content) : esc(content)}${srcHtml}</div>`;
+      chat.appendChild(d);
+      if (isNew) chat.scrollTop = chat.scrollHeight;
+      return d;
+    }
+
+    function showTyping() {
+      const d = document.createElement('div'); d.id = 'typing'; d.className = 'msg ai';
+      d.innerHTML = `<div class="av ai"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg></div><div class="bubble"><div class="dots"><span></span><span></span><span></span></div></div>`;
+      chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+    }
+    function hideTyping() { const t = document.getElementById('typing'); if (t) t.remove(); }
+
+    sendBtn.onclick = () => { if (busy) { if (currentAbort) currentAbort.abort(); } else { sendMsg(); } };
+    msgInput.onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } };
+    msgInput.oninput = () => { msgInput.style.height = 'auto'; msgInput.style.height = Math.min(msgInput.scrollHeight, 130) + 'px'; };
+
+    function setBusy(isBusy) {
+      busy = isBusy;
+      sendBtn.disabled = false;              // stays clickable while busy, to allow Stop
+      sendIcon.style.display = isBusy ? 'none' : '';
+      stopIcon.style.display = isBusy ? '' : 'none';
+    }
+
+    async function sendMsg(preset) {
+      if (busy) return;
+      const text = preset || msgInput.value.trim();
+      if (!text || !activeId) return;
+      const s = getActive(); if (!s) return;
+      msgInput.value = ''; msgInput.style.height = 'auto';
+      s.messages.push({ role: 'user', content: text });
+      if (chat.querySelector('.sugg-wrap')) chat.innerHTML = '';
+      addBubble('user', text, true);
+      showTyping();
+      setBusy(true);
+      currentAbort = new AbortController();
+      try {
+        const endpoint = s.isChat ? '/api/chat/mongo' : '/api/chat';
+        const body = s.isChat
+          ? { messages: s.messages, attachedPdfText: s.attachedPdf ? s.attachedPdf.text : undefined }
+          : { messages: s.messages, pdfText: s.text };
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(s.isChat ? authHeaders() : {}) },
+          body: JSON.stringify(body),
+          signal: currentAbort.signal
+        });
+        const data = await res.json();
+        hideTyping();
+        if (data.error) throw new Error(data.error);
+        s.messages.push({ role: 'ai', content: data.response, sources: data.sources });
+        addBubble('ai', data.response, true, data.sources);
+        if (s.isChat) saveChat(s);
+      } catch (e) {
+        hideTyping();
+        if (e.name === 'AbortError') {
+          const stoppedMsg = '⏹ Stopped';
+          s.messages.push({ role: 'ai', content: stoppedMsg });
+          addBubble('ai', stoppedMsg, true);
+        } else {
+          const errMsg = '⚠️ Error: ' + e.message;
+          s.messages.push({ role: 'ai', content: errMsg });
+          addBubble('ai', errMsg, true);
+        }
+        if (s.isChat) saveChat(s);
+      }
+      currentAbort = null;
+      setBusy(false); msgInput.focus();
+    }
+
+    function esc(t) { return t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>'); }
+
+    // True if `line` is a markdown table separator row, e.g. "|---|:--:|---|"
+    // or "---|---|---" (leading/trailing pipes optional). Requires every
+    // cell to be made up of only dashes/colons so a normal text line
+    // containing a literal "-" doesn't get misread as a separator.
+    function isTableSeparator(line) {
+      const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
+      return cells.length > 0 && cells.every(c => /^:?-{1,}:?$/.test(c.trim()));
+    }
+
+    function parseTableRow(line) {
+      let row = line.trim();
+      if (row.startsWith('|')) row = row.slice(1);
+      if (row.endsWith('|')) row = row.slice(0, -1);
+      return row.split('|').map(c => c.trim());
+    }
+
+    function md(t) {
+      let o = t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      o = o.replace(/^### (.+)$/gm, '<h3>$1</h3>').replace(/^## (.+)$/gm, '<h2>$1</h2>').replace(/^# (.+)$/gm, '<h1>$1</h1>');
+      // Bold/italic/code are applied globally here, BEFORE table detection
+      // below — so by the time a line is split into table cells, any
+      // **bold**/*italic*/`code` inside those cells is already converted
+      // to HTML. The table-parsing loop below just slices on "|" and
+      // doesn't need to re-run inline formatting.
+      o = o.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
+      o = o.replace(/`([^`]+)`/g, '<code>$1</code>').replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+      const lines = o.split('\n'); const out = []; let inUl = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Table detection: a line that looks like a pipe-table header row,
+        // immediately followed by a separator row ("|---|---|"). Without
+        // this, table syntax from the LLM (used for chapter/code
+        // comparisons per the system prompt) was falling through to the
+        // generic paragraph/<br> logic below as raw, unparsed "| a | b |"
+        // text — this is what made comparison answers look empty/broken.
+        if (line.includes('|') && i + 1 < lines.length && isTableSeparator(lines[i + 1])) {
+          if (inUl) { out.push('</ul>'); inUl = false; }
+          const headerCells = parseTableRow(line);
+          let tableHtml = '<table class="md-table"><thead><tr>' +
+            headerCells.map(c => `<th>${c}</th>`).join('') +
+            '</tr></thead><tbody>';
+          i += 2; // skip header + separator row
+          while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+            const cells = parseTableRow(lines[i]);
+            tableHtml += '<tr>' + cells.map(c => `<td>${c}</td>`).join('') + '</tr>';
+            i++;
+          }
+          tableHtml += '</tbody></table>';
+          out.push(tableHtml);
+          i--; // outer for-loop's i++ will advance past the line after the table
+          continue;
+        }
+
+        const li = line.match(/^\s*[-*] (.+)/);
+        if (li) { if (!inUl) { out.push('<ul>'); inUl = true; } out.push(`<li>${li[1]}</li>`); }
+        else { if (inUl) { out.push('</ul>'); inUl = false; } out.push(line); }
+      }
+      if (inUl) out.push('</ul>');
+      return out.join('\n').replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+    }
+
+    function showProc(m) { procBar.style.display = 'flex'; procMsg.textContent = m; }
+    function hideProc() { procBar.style.display = 'none'; }
+
+    // ── Foldable sidebar ─────────────────────────────────────────────────────
+    const appEl = document.getElementById('app');
+    document.getElementById('foldBtn').onclick = () => appEl.classList.add('sidebar-collapsed');
+    document.getElementById('reopenBtn').onclick = () => appEl.classList.remove('sidebar-collapsed');
+
+    // ── Foldable sidebar sections (Sources / Add to Database) ──────────────
+    document.querySelectorAll('.sec-toggle').forEach(btn => {
+      const sec = document.getElementById(btn.dataset.target);
+      const stored = localStorage.getItem('regulai_sec_collapsed_' + btn.dataset.target);
+      if (stored === '1') sec.classList.add('collapsed');
+      btn.onclick = () => {
+        const collapsed = sec.classList.toggle('collapsed');
+        localStorage.setItem('regulai_sec_collapsed_' + btn.dataset.target, collapsed ? '1' : '0');
+      };
+    });
+
+    // ── Auth gate ────────────────────────────────────────────────────────────
+    const authGate = document.getElementById('authGate');
+    const authForm = document.getElementById('authForm');
+    const authEmailInput = document.getElementById('authEmail');
+    const authPasswordInput = document.getElementById('authPassword');
+    const authErrorEl = document.getElementById('authError');
+    const authSubmitBtn = document.getElementById('authSubmitBtn');
+    const authHint = document.getElementById('authHint');
+    const authTabs = document.querySelectorAll('.auth-tab');
+    const profileBtn = document.getElementById('profileBtn');
+    const profileMenu = document.getElementById('profileMenu');
+    const profileEmailLabel = document.getElementById('profileEmailLabel');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    let authMode = 'login';
+
+    function setAuthMode(mode) {
+      authMode = mode;
+      authTabs.forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+      authSubmitBtn.textContent = mode === 'login' ? 'Log In' : 'Create Account';
+      authPasswordInput.autocomplete = mode === 'login' ? 'current-password' : 'new-password';
+      authHint.innerHTML = mode === 'login'
+        ? `Don't have an account? <span data-mode="signup">Sign up</span>`
+        : `Already have an account? <span data-mode="login">Log in</span>`;
+      authErrorEl.textContent = '';
+      bindHintSwitch();
+    }
+    function bindHintSwitch() {
+      const el = authHint.querySelector('span');
+      if (el) el.onclick = () => setAuthMode(el.dataset.mode);
+    }
+    authTabs.forEach(t => t.onclick = () => setAuthMode(t.dataset.mode));
+    bindHintSwitch();
+
+    authForm.onsubmit = async (e) => {
+      e.preventDefault();
+      authErrorEl.textContent = '';
+      authSubmitBtn.disabled = true;
+      const email = authEmailInput.value.trim();
+      const password = authPasswordInput.value;
+      try {
+        const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/signup';
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Something went wrong');
+        onLoggedIn(data.token, data.email);
+      } catch (err) {
+        authErrorEl.textContent = err.message;
+      }
+      authSubmitBtn.disabled = false;
+    };
+
+    function onLoggedIn(token, email) {
+      authToken = token; authEmail = email;
+      localStorage.setItem('regulai_token', token);
+      localStorage.setItem('regulai_email', email);
+      authGate.classList.add('hidden');
+      profileEmailLabel.textContent = email;
+      authForm.reset();
+      loadChats();
+      refreshScheduleStatusLine();
+    }
+
+    function showAuthGate() {
+      authToken = null; authEmail = null;
+      localStorage.removeItem('regulai_token');
+      localStorage.removeItem('regulai_email');
+      profileMenu.classList.remove('open');
+      sources = []; activeId = null;
+      attachBtn.disabled = true;
+      renderChatList(); renderSourcesList(); renderAttachChip(); renderChat();
+      authGate.classList.remove('hidden');
+    }
+
+    profileBtn.onclick = (e) => { e.stopPropagation(); profileMenu.classList.toggle('open'); };
+    document.addEventListener('click', (e) => {
+      if (!profileMenu.contains(e.target) && e.target !== profileBtn) profileMenu.classList.remove('open');
+    });
+
+    // ✅ HARDENED: local logout is guaranteed to happen no matter what —
+    // a slow/404/hanging backend call, or any render function throwing,
+    // can no longer silently prevent the visible logout from occurring.
+    // 1. The backend notification is fire-and-forget with a hard 2s
+    //    timeout (via AbortController) — nothing here ever blocks on it.
+    // 2. Clearing storage happens FIRST and synchronously, before any
+    //    rendering calls. Even if a render call below throws, the
+    //    token is already gone and the redirect still fires.
+    // 3. The redirect uses location.replace(), which forces a real
+    //    navigation even if the current URL is already '/' (plain
+    //    href assignment to an unchanged URL is not reliably a no-op
+    //    across browsers, so don't depend on it for a "hard reload").
+    function doLogout() {
+      // Fire-and-forget backend notification — never awaited, never
+      // blocks the visible logout, times out on its own after 2s.
+      try {
+        const ctrl = new AbortController();
+        setTimeout(() => ctrl.abort(), 2000);
+        fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: authHeaders(),
+          signal: ctrl.signal,
+        }).catch(() => { });
+      } catch (e) {
+        console.error('[logout] backend notify failed (ignored):', e);
+      }
+
+      // Clear local state FIRST — guaranteed to run.
+      authToken = null;
+      authEmail = null;
+      try {
+        localStorage.removeItem('regulai_token');
+        localStorage.removeItem('regulai_email');
+      } catch (e) {
+        console.error('[logout] localStorage clear failed:', e);
+      }
+
+      // Best-effort UI cleanup — wrapped so a bug in any render function
+      // can't stop the redirect below from happening.
+      try {
+        profileMenu.classList.remove('open');
+        sources = [];
+        activeId = null;
+        if (attachBtn) attachBtn.disabled = true;
+        renderChatList();
+        renderSourcesList();
+        renderAttachChip();
+        renderChat();
+        authGate.classList.remove('hidden');
+        authForm.reset();
+        setAuthMode('login');
+      } catch (e) {
+        console.error('[logout] UI cleanup failed (redirecting anyway):', e);
+      }
+
+      // Guaranteed hard navigation back to a clean, logged-out page —
+      // runs regardless of anything above.
+      window.location.replace('/');
+    }
+
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', doLogout);
+    } else {
+      console.error('[logout] #logoutBtn not found in DOM — button cannot be wired up.');
+    }
+
+    // Standalone always-visible button — wired independently of the
+    // dropdown. Listens on BOTH click and mousedown as a belt-and-
+    // suspenders measure: if something on the page is ever found to be
+    // swallowing 'click' events specifically, mousedown still fires.
+    const logoutBtnStandalone = document.getElementById('logoutBtnStandalone');
+    if (logoutBtnStandalone) {
+      let standaloneFired = false;
+      const fireOnce = (evt) => {
+        console.log('[logout] standalone button triggered via', evt.type);
+        if (standaloneFired) return;   // mousedown+click both fire on a normal click — only run once
+        standaloneFired = true;
+        doLogout();
+      };
+      logoutBtnStandalone.addEventListener('mousedown', fireOnce);
+      logoutBtnStandalone.addEventListener('click', fireOnce);
+    } else {
+      console.error('[logout] #logoutBtnStandalone not found in DOM.');
+    }
+
+    async function checkSession() {
+      if (!authToken) { showAuthGate(); return; }
+      try {
+        const res = await fetch('/api/auth/me', { headers: authHeaders() });
+        if (!res.ok) throw new Error('expired');
+        const data = await res.json();
+        onLoggedIn(authToken, data.email);
+      } catch {
+        showAuthGate();
+      }
+    }
+    checkSession();
+
+    // ── Manual scrape trigger ───────────────────────────────────────────────
+    const scrapeBtn = document.getElementById('scrapeBtn');
+    const scrapeBtnLabel = document.getElementById('scrapeBtnLabel');
+
+    // /api/scrape/run now returns immediately (the crawl runs in a background
+    // thread server-side) so we poll /api/scrape/status until it finishes,
+    // instead of awaiting one long request that could time out.
+    async function pollScrapeStatus() {
+      while (true) {
+        await new Promise(r => setTimeout(r, 3000));
+        const res = await fetch('/api/scrape/status');
+        const data = await res.json();
+        if (data.status === 'running') {
+          scrapeBtnLabel.textContent = 'Scraping…';
+          continue;
+        }
+        return data; // complete | error | idle
+      }
+    }
+
+    scrapeBtn.onclick = async () => {
+      if (scrapeBtn.classList.contains('busy')) return;
+      scrapeBtn.classList.add('busy');
+      scrapeBtnLabel.textContent = 'Starting…';
+      showProc('Checking CBIC for new notifications…');
+      try {
+        const res = await fetch('/api/scrape/run', { method: 'POST', headers: authHeaders() });
+        if (res.status === 401) { showAuthGate(); throw new Error('Session expired'); }
+        if (res.status === 409) {
+          // Someone else's run (or the scheduler) is already in progress —
+          // just tag along and watch it finish instead of erroring out.
+          scrapeBtnLabel.textContent = 'Scraping…';
+        } else if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Could not start scrape');
+        }
+        const finalState = await pollScrapeStatus();
+        if (finalState.status === 'error') throw new Error(finalState.error || 'Scrape failed');
+        scrapeBtnLabel.textContent = 'Done — DB updated';
+      } catch (err) {
+        scrapeBtnLabel.textContent = 'Failed — try again';
+        console.error(err);
+      } finally {
+        hideProc();
+        scrapeBtn.classList.remove('busy');
+        setTimeout(() => { scrapeBtnLabel.textContent = 'New Notifications'; }, 4000);
+      }
+    };
+
+    // ── Automatic scraping schedule (gear button + modal) ───────────────────
+    const scheduleGearBtn = document.getElementById('scheduleGearBtn');
+    const scheduleModal = document.getElementById('scheduleModal');
+    const scheduleStatusLine = document.getElementById('scheduleStatusLine');
+    const schedEnabled = document.getElementById('schedEnabled');
+    const schedFields = document.getElementById('schedFields');
+    const schedType = document.getElementById('schedType');
+    const schedCronFields = document.getElementById('schedCronFields');
+    const schedIntervalFields = document.getElementById('schedIntervalFields');
+    const schedDay = document.getElementById('schedDay');
+    const schedHour = document.getElementById('schedHour');
+    const schedMinute = document.getElementById('schedMinute');
+    const schedIntervalHours = document.getElementById('schedIntervalHours');
+    const schedNextRun = document.getElementById('schedNextRun');
+    const schedError = document.getElementById('schedError');
+    const schedSaveBtn = document.getElementById('schedSaveBtn');
+    const schedCancelBtn = document.getElementById('schedCancelBtn');
+
+    // Populate the hour dropdown once: 00–23
+    for (let h = 0; h < 24; h++) {
+      const opt = document.createElement('option');
+      opt.value = h;
+      opt.textContent = String(h).padStart(2, '0');
+      schedHour.appendChild(opt);
+    }
+
+    function fmtNextRun(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      return `Next run: ${d.toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' })}`;
+    }
+
+    function updateScheduleStatusLine(cfg) {
+      if (!cfg || !cfg.enabled) { scheduleStatusLine.textContent = 'Auto-scrape: off'; return; }
+      scheduleStatusLine.textContent = cfg.next_scheduled_run
+        ? `Auto-scrape on — ${fmtNextRun(cfg.next_scheduled_run).toLowerCase()}`
+        : 'Auto-scrape: on';
+    }
+
+    function applySchedTypeVisibility() {
+      const isInterval = schedType.value === 'interval';
+      schedCronFields.classList.toggle('sched-hide', isInterval);
+      schedIntervalFields.classList.toggle('sched-hide', !isInterval);
+    }
+    schedType.onchange = applySchedTypeVisibility;
+
+    function applyEnabledVisibility() {
+      schedFields.classList.toggle('disabled', !schedEnabled.checked);
+    }
+    schedEnabled.onchange = applyEnabledVisibility;
+
+    async function openScheduleModal() {
+      schedError.textContent = '';
+      try {
+        const res = await fetch('/api/scrape/schedule', { headers: authHeaders() });
+        if (res.status === 401) { showAuthGate(); return; }
+        const cfg = await res.json();
+        if (!res.ok) throw new Error(cfg.error || 'Could not load schedule');
+
+        schedEnabled.checked = !!cfg.enabled;
+        schedType.value = cfg.type || 'cron';
+        schedDay.value = cfg.day_of_week || 'mon';
+        schedHour.value = String(cfg.hour ?? 3);
+        schedMinute.value = String(cfg.minute ?? 0);
+        schedIntervalHours.value = cfg.interval_hours ?? 24;
+        schedNextRun.textContent = fmtNextRun(cfg.next_scheduled_run);
+        applySchedTypeVisibility();
+        applyEnabledVisibility();
+        updateScheduleStatusLine(cfg);
+
+        scheduleModal.classList.remove('hidden');
+      } catch (err) {
+        console.error(err);
+        schedError.textContent = 'Could not load schedule settings.';
+        scheduleModal.classList.remove('hidden');
+      }
+    }
+
+    function closeScheduleModal() { scheduleModal.classList.add('hidden'); }
+
+    scheduleGearBtn.onclick = openScheduleModal;
+    schedCancelBtn.onclick = closeScheduleModal;
+    scheduleModal.addEventListener('click', (e) => { if (e.target === scheduleModal) closeScheduleModal(); });
+
+    schedSaveBtn.onclick = async () => {
+      schedError.textContent = '';
+      schedSaveBtn.disabled = true;
+      schedSaveBtn.textContent = 'Saving…';
+      try {
+        const body = {
+          enabled: schedEnabled.checked,
+          type: schedType.value,
+          day_of_week: schedDay.value,
+          hour: Number(schedHour.value),
+          minute: Number(schedMinute.value),
+          interval_hours: Number(schedIntervalHours.value) || 24,
+        };
+        const res = await fetch('/api/scrape/schedule', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify(body),
+        });
+        if (res.status === 401) { showAuthGate(); return; }
+        const cfg = await res.json();
+        if (!res.ok) throw new Error(cfg.error || 'Could not save schedule');
+
+        schedNextRun.textContent = fmtNextRun(cfg.next_scheduled_run);
+        updateScheduleStatusLine(cfg);
+        closeScheduleModal();
+      } catch (err) {
+        schedError.textContent = err.message || 'Could not save schedule.';
+      } finally {
+        schedSaveBtn.disabled = false;
+        schedSaveBtn.textContent = 'Save';
+      }
+    };
+
+    // Refreshes the on/off + next-run summary under the buttons — called
+    // once a session is confirmed (onLoggedIn), since authToken isn't set
+    // yet at initial page-load time (checkSession()'s fetch is still async).
+    async function refreshScheduleStatusLine() {
+      if (!authToken) return;
+      try {
+        const res = await fetch('/api/scrape/schedule', { headers: authHeaders() });
+        if (res.ok) updateScheduleStatusLine(await res.json());
+      } catch { /* non-critical — leave the status line blank */ }
+    }
+    const dbDropZone = document.getElementById('dbDropZone');
+    const dbFileInput = document.getElementById('dbFileInput');
+    const dbUploadStatus = document.getElementById('dbUploadStatus');
+
+    dbDropZone.addEventListener('click', () => dbFileInput.click());
+    dbDropZone.addEventListener('dragover', e => { e.preventDefault(); dbDropZone.classList.add('over'); });
+    dbDropZone.addEventListener('dragleave', () => dbDropZone.classList.remove('over'));
+    dbDropZone.addEventListener('drop', e => {
+      e.preventDefault(); dbDropZone.classList.remove('over');
+      const f = e.dataTransfer.files[0];
+      if (f) uploadToDatabase(f);
+    });
+    dbFileInput.addEventListener('change', () => {
+      if (dbFileInput.files[0]) uploadToDatabase(dbFileInput.files[0]);
+      dbFileInput.value = '';
+    });
+
+    async function uploadToDatabase(file) {
+      if (!file.name.toLowerCase().endsWith('.pdf')) {
+        dbUploadStatus.textContent = 'Only PDF files are supported'; dbUploadStatus.className = 'db-upload-status err';
+        return;
+      }
+      dbUploadStatus.textContent = `Uploading "${file.name}"…`; dbUploadStatus.className = 'db-upload-status';
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const res = await fetch('/api/pdf/upload', { method: 'POST', headers: authHeaders(), body: fd });
+        if (res.status === 401) { showAuthGate(); throw new Error('Session expired'); }
+        const data = await res.json();
+        if (!res.ok || data.error) throw new Error(data.error || 'Upload failed');
+        dbUploadStatus.textContent = `✓ Added — ${data.chunks_indexed} chunks indexed, searchable now`;
+        dbUploadStatus.className = 'db-upload-status ok';
+      } catch (err) {
+        dbUploadStatus.textContent = '⚠ ' + err.message;
+        dbUploadStatus.className = 'db-upload-status err';
+      }
+    }
+  </script>
+</body>
+
+</html>

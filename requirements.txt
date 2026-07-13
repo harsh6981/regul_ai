@@ -1,0 +1,33 @@
+# Web server
+flask
+flask-cors
+
+# Scraper (project.py)
+requests
+pandas
+openpyxl
+
+# Mongo + env
+pymongo
+python-dotenv
+
+# Scheduled scraping (app.py's start_scheduler()) — runs project.py's crawl
+# + mongo_pipeline.py + embed_pipeline.py on a timer, in-process, no cron
+# job or external worker needed
+APScheduler
+
+# Auth (auth.py) — JWT session tokens; password hashing uses
+# werkzeug.security, which Flask already pulls in as a dependency
+PyJWT
+
+# PDF text extraction (mongo_pipeline.py)
+pymupdf
+
+# LLM (Gemini, via native google-genai SDK) + RAG pipeline
+google-genai
+sentence-transformers
+
+# OpenAI-compatible SDK — used for hsn_extract_pipeline.py's Gemini calls,
+# and for routing rag_search.py through Groq (or any other OpenAI-
+# compatible provider) when LLM_PROVIDER=groq is set in .env
+openai
