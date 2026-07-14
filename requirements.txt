@@ -1,51 +1,27 @@
-# -----------------------------
-# Web Framework
-# -----------------------------
-Flask==3.1.3
-Flask-Cors==6.0.1
-Flask-Limiter==3.12
-waitress==3.0.2
+Flask
+Flask-Cors
+Flask-Limiter
+waitress
 
-# -----------------------------
-# Database
-# -----------------------------
-pymongo==4.13.2
-python-dotenv==1.1.1
+requests
+pandas
+openpyxl
 
-# -----------------------------
-# Scheduler
-# -----------------------------
-APScheduler==3.11.0
+pymongo
+python-dotenv
 
-# -----------------------------
-# Authentication
-# -----------------------------
-PyJWT==2.10.1
-cryptography==45.0.5
+APScheduler
 
-# -----------------------------
-# PDF Processing
-# -----------------------------
-PyMuPDF==1.26.3
+PyJWT
+cryptography
 
-# -----------------------------
-# Data Processing
-# -----------------------------
-pandas==2.3.1
-openpyxl==3.1.5
-requests==2.32.4
+PyMuPDF
 
-# -----------------------------
-# AI / LLM
-# -----------------------------
-google-genai==1.27.0
-openai==1.97.1
+google-genai
+openai
 
-# -----------------------------
-# Embeddings
-# -----------------------------
-sentence-transformers==5.0.0
-torch==2.7.1
-transformers==4.53.2
-scikit-learn==1.7.1
-numpy==2.3.1
+sentence-transformers
+torch
+transformers
+scikit-learn
+numpy
