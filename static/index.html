@@ -148,6 +148,36 @@
         </div>
       </div>
 
+      <!-- Switches the main panel between the chat and the duty calculator.
+           Both live inside #main the whole time; this just toggles which
+           of #chatViewBody / #dutyView is visible. -->
+      <div class="view-switch" id="viewSwitch">
+        <button type="button" class="view-switch-btn active" data-view="chat">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Chat
+        </button>
+        <button type="button" class="view-switch-btn" data-view="duty">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            stroke-linecap="round" stroke-linejoin="round">
+            <rect x="4" y="2" width="16" height="20" rx="2" />
+            <line x1="8" y1="7" x2="16" y2="7" />
+            <line x1="8" y1="11" x2="8" y2="11" />
+            <line x1="12" y1="11" x2="12" y2="11" />
+            <line x1="16" y1="11" x2="16" y2="11" />
+            <line x1="8" y1="15" x2="8" y2="15" />
+            <line x1="12" y1="15" x2="12" y2="15" />
+            <line x1="16" y1="15" x2="16" y2="15" />
+            <line x1="8" y1="19" x2="8" y2="19" />
+            <line x1="12" y1="19" x2="12" y2="19" />
+            <line x1="16" y1="19" x2="16" y2="19" />
+          </svg>
+          Duty Calculator
+        </button>
+      </div>
+
       <!-- Chat threads: persisted server-side per account -->
       <div class="chat-hist-wrap">
         <button class="new-chat-btn" id="newChatBtn">
@@ -250,7 +280,7 @@
           <div class="tb-sub" id="tbSub">Start a new chat to begin</div>
         </div>
         <div class="topbar-right">
-          <div class="badge">Gemini 2.5 Flash</div>
+          <div class="badge" id="topbarBadge">Gemini 2.5 Flash</div>
           <!-- Standalone logout button: always visible, no dropdown, no
                dependency on any style.css rule (all styling is inline)
                and no dependency on any other JS state (menu open/closed,
@@ -289,34 +319,105 @@
           </div>
         </div>
       </div>
-      <div id="procBar">
-        <div class="spin"></div><span id="procMsg">Loading…</span>
-      </div>
-      <div id="chat"></div>
-      <div class="input-bar">
-        <div class="attach-chip-wrap" id="attachChipWrap"></div>
-        <div class="inp-wrap">
-          <button id="attachBtn" class="attach-btn" title="Attach a PDF to this chat" type="button" disabled>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path
-                d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48" />
-            </svg>
-          </button>
-          <input type="file" id="attachFileInput" accept=".pdf" />
-          <textarea id="msgInput" rows="1" placeholder="Ask anything about the document…"></textarea>
-          <button id="sendBtn" disabled>
-            <svg id="sendIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13" />
-              <polygon points="22 2 15 22 11 13 2 9 22 2" />
-            </svg>
-            <svg id="stopIcon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:none">
-              <rect x="5" y="5" width="14" height="14" rx="2" />
-            </svg>
-          </button>
+      <div id="chatViewBody">
+        <div id="procBar">
+          <div class="spin"></div><span id="procMsg">Loading…</span>
         </div>
-        <div class="hint">Enter to send · Shift+Enter for new line</div>
+        <div id="chat"></div>
+        <div class="input-bar">
+          <div class="attach-chip-wrap" id="attachChipWrap"></div>
+          <div class="inp-wrap">
+            <button id="attachBtn" class="attach-btn" title="Attach a PDF to this chat" type="button" disabled>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path
+                  d="M21.44 11.05l-9.19 9.19a5.5 5.5 0 0 1-7.78-7.78l9.19-9.19a3.5 3.5 0 0 1 4.95 4.95l-9.2 9.19a1.5 1.5 0 0 1-2.12-2.12l8.49-8.48" />
+              </svg>
+            </button>
+            <input type="file" id="attachFileInput" accept=".pdf" />
+            <textarea id="msgInput" rows="1" placeholder="Ask anything about the document…"></textarea>
+            <button id="sendBtn" disabled>
+              <svg id="sendIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
+              <svg id="stopIcon" width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+                <rect x="5" y="5" width="14" height="14" rx="2" />
+              </svg>
+            </button>
+          </div>
+          <div class="hint">Enter to send · Shift+Enter for new line</div>
+        </div>
+      </div>
+
+      <!-- ── Duty Calculator view ─────────────────────────────────────────
+           Hidden by default; view-switch toggles this vs #chatViewBody.
+           Talks to the /api/duty/* routes added in app.py. -->
+      <div id="dutyView" class="hidden">
+        <div id="dutyScroll">
+
+          <div class="duty-card">
+            <div class="duty-card-title">Product</div>
+
+            <div class="duty-classify-row">
+              <input type="text" id="dutyDescInput" class="auth-input duty-desc-input"
+                placeholder="Describe the product, e.g. &quot;cotton bedsheets&quot; — or enter the CTH code directly below" />
+              <button type="button" id="dutyClassifyBtn" class="duty-btn-ghost">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <path
+                    d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                </svg>
+                AI Classify
+              </button>
+            </div>
+            <div id="dutyClassifyResults" class="duty-classify-results hidden"></div>
+
+            <div class="duty-form-grid">
+              <div class="duty-field">
+                <label for="dutyCthInput">8-digit CTH (HSN) code</label>
+                <input type="text" id="dutyCthInput" class="auth-input" maxlength="8" inputmode="numeric"
+                  placeholder="e.g. 39076190" />
+              </div>
+              <div class="duty-field">
+                <label for="dutyCountrySelect">Country of origin</label>
+                <select id="dutyCountrySelect" class="auth-input"></select>
+              </div>
+              <div class="duty-field">
+                <label for="dutyCifInput">CIF value (₹)</label>
+                <input type="number" id="dutyCifInput" class="auth-input" min="0" step="0.01"
+                  placeholder="e.g. 500000" />
+              </div>
+            </div>
+
+            <div class="auth-error" id="dutyError"></div>
+            <button type="button" id="dutyCalcBtn" class="auth-submit duty-calc-btn">Calculate Duty</button>
+          </div>
+
+          <div id="dutyProcBar" class="duty-proc-bar hidden">
+            <div class="spin"></div><span>Fetching live rates &amp; calculating…</span>
+          </div>
+
+          <div id="dutyResults" class="duty-results hidden"></div>
+
+          <div id="dutyEmpty" class="empty">
+            <div class="empty-ico">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2" />
+                <line x1="8" y1="7" x2="16" y2="7" />
+                <line x1="8" y1="11" x2="16" y2="11" />
+                <line x1="8" y1="15" x2="16" y2="15" />
+              </svg>
+            </div>
+            <div class="empty-t">No calculation yet</div>
+            <div class="empty-s">Describe the product (or enter its CTH code directly), pick the country of
+              origin and CIF value, then run the 14-step duty cascade — including live ICEGATE rates, FTA
+              eligibility, and any anti-dumping/safeguard measures.</div>
+          </div>
+
+        </div>
       </div>
     </main>
   </div>
@@ -1196,6 +1297,267 @@
         dbUploadStatus.className = 'db-upload-status err';
       }
     }
+
+    // ── Duty Calculator ──────────────────────────────────────────────────────
+    // Talks to the /api/duty/* routes (app.py + duty_calculator/*). Entirely
+    // separate feature from the chat above — switched via #viewSwitch.
+    (function initDutyCalculator() {
+      const dutyEls = {
+        chatViewBody: document.getElementById('chatViewBody'),
+        dutyView: document.getElementById('dutyView'),
+        topbarBadge: document.getElementById('topbarBadge'),
+        descInput: document.getElementById('dutyDescInput'),
+        classifyBtn: document.getElementById('dutyClassifyBtn'),
+        classifyResults: document.getElementById('dutyClassifyResults'),
+        cthInput: document.getElementById('dutyCthInput'),
+        countrySelect: document.getElementById('dutyCountrySelect'),
+        cifInput: document.getElementById('dutyCifInput'),
+        error: document.getElementById('dutyError'),
+        calcBtn: document.getElementById('dutyCalcBtn'),
+        procBar: document.getElementById('dutyProcBar'),
+        results: document.getElementById('dutyResults'),
+        empty: document.getElementById('dutyEmpty'),
+      };
+
+      function escapeHtml(s) {
+        return String(s ?? '').replace(/[&<>"']/g, c => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
+      }
+
+      function formatINR(amount) {
+        const n = Number(amount) || 0;
+        if (n >= 10000000) return '₹' + (n / 10000000).toFixed(2) + ' Cr';
+        if (n >= 100000) return '₹' + (n / 100000).toFixed(2) + ' L';
+        return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+
+      // ── View switching (Chat <-> Duty Calculator) ──────────────────────────
+      document.querySelectorAll('.view-switch-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const view = btn.dataset.view;
+          document.querySelectorAll('.view-switch-btn').forEach(b => b.classList.toggle('active', b === btn));
+          dutyEls.chatViewBody.classList.toggle('hidden', view !== 'chat');
+          dutyEls.dutyView.classList.toggle('hidden', view !== 'duty');
+
+          if (view === 'duty') {
+            tbTitle.textContent = 'Duty Calculator';
+            tbSub.textContent = '14-step cascade · FTA & ADD/CVD checks · ICEGATE live rates';
+            dutyEls.topbarBadge.textContent = 'ICEGATE + Gemini';
+          } else {
+            dutyEls.topbarBadge.textContent = 'Gemini 2.5 Flash';
+            // Restore whatever the chat header should say — mirrors the
+            // same logic used when a chat is (de)selected elsewhere.
+            const active = sources.find(s => s.id === activeId);
+            if (active) {
+              tbTitle.textContent = active.name;
+            } else {
+              tbTitle.textContent = 'Select a chat';
+              tbSub.textContent = 'Start a new chat to begin';
+            }
+          }
+        });
+      });
+
+      // ── Populate countries dropdown ────────────────────────────────────────
+      fetch('/api/duty/countries')
+        .then(r => r.json())
+        .then(data => {
+          (data.countries || []).forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.code;
+            opt.textContent = c.name;
+            dutyEls.countrySelect.appendChild(opt);
+          });
+        })
+        .catch(() => {
+          // Fall back to a minimal manual list if the endpoint is unreachable —
+          // the calculator can still run with a manually-typed CTH.
+          [['ALL', 'All Countries (Default)'], ['CHN', 'China'], ['USA', 'United States']].forEach(([code, name]) => {
+            const opt = document.createElement('option');
+            opt.value = code; opt.textContent = name;
+            dutyEls.countrySelect.appendChild(opt);
+          });
+        });
+
+      // ── AI Classify ─────────────────────────────────────────────────────────
+      dutyEls.classifyBtn.addEventListener('click', async () => {
+        const description = dutyEls.descInput.value.trim();
+        dutyEls.error.textContent = '';
+        if (description.length < 3) {
+          dutyEls.error.textContent = 'Describe the product in at least 3 characters.';
+          return;
+        }
+        dutyEls.classifyBtn.disabled = true;
+        const originalLabel = dutyEls.classifyBtn.innerHTML;
+        dutyEls.classifyBtn.innerHTML = 'Classifying…';
+        try {
+          const res = await fetch('/api/duty/classify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ description, country: dutyEls.countrySelect.value || 'ALL' }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) throw new Error(data.error || 'Classification failed');
+
+          const suggestions = data.suggestions || [];
+          dutyEls.classifyResults.innerHTML = suggestions.map(s => `
+            <button type="button" class="duty-suggestion" data-cth="${escapeHtml(s.cth)}">
+              <span class="duty-suggestion-cth">${escapeHtml(s.cth)}</span>
+              <span class="duty-suggestion-body">
+                <span class="duty-suggestion-desc">${escapeHtml(s.description)}</span>
+                <span class="duty-suggestion-reason">${escapeHtml(s.reason || '')}</span>
+              </span>
+              <span class="duty-confidence ${escapeHtml(s.confidence || 'low')}">${escapeHtml(s.confidence || 'low')}</span>
+            </button>
+          `).join('');
+          dutyEls.classifyResults.classList.toggle('hidden', suggestions.length === 0);
+
+          dutyEls.classifyResults.querySelectorAll('.duty-suggestion').forEach(btn => {
+            btn.addEventListener('click', () => {
+              dutyEls.cthInput.value = btn.dataset.cth;
+            });
+          });
+        } catch (err) {
+          dutyEls.error.textContent = err.message;
+        } finally {
+          dutyEls.classifyBtn.disabled = false;
+          dutyEls.classifyBtn.innerHTML = originalLabel;
+        }
+      });
+
+      // ── Calculate ───────────────────────────────────────────────────────────
+      dutyEls.calcBtn.addEventListener('click', async () => {
+        const cth = dutyEls.cthInput.value.replace(/\D/g, '');
+        const country = dutyEls.countrySelect.value || 'ALL';
+        const cifValue = parseFloat(dutyEls.cifInput.value);
+
+        dutyEls.error.textContent = '';
+        if (cth.length !== 8) {
+          dutyEls.error.textContent = 'Enter (or AI-classify) an 8-digit CTH code.';
+          return;
+        }
+        if (!cifValue || cifValue <= 0) {
+          dutyEls.error.textContent = 'Enter a CIF value greater than 0.';
+          return;
+        }
+
+        dutyEls.calcBtn.disabled = true;
+        dutyEls.empty.classList.add('hidden');
+        dutyEls.results.classList.add('hidden');
+        dutyEls.procBar.classList.remove('hidden');
+
+        try {
+          const res = await fetch('/api/duty/calculate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ cth, country, cif_value: cifValue }),
+          });
+          const data = await res.json();
+          if (!res.ok || data.error) throw new Error(data.error || 'Calculation failed');
+          renderDutyResults(data);
+        } catch (err) {
+          dutyEls.error.textContent = err.message;
+          dutyEls.empty.classList.remove('hidden');
+        } finally {
+          dutyEls.calcBtn.disabled = false;
+          dutyEls.procBar.classList.add('hidden');
+        }
+      });
+
+      function renderDutyResults(data) {
+        const b = data.calculation || {};
+        const ai = data.ai_summary || {};
+        const fta = data.fta || {};
+        const measures = data.trade_defense_measures || [];
+        const source = data.duty_structure?.source || 'fallback_estimated';
+
+        const summaryHtml = `
+          <div class="duty-summary-card">
+            <div class="duty-headline">${escapeHtml(ai.headline || '')}</div>
+            ${(ai.key_points || []).length ? `<ul class="duty-key-points">${ai.key_points.map(p => `<li>${escapeHtml(p)}</li>`).join('')
+            }</ul>` : ''}
+            ${(ai.warnings || []).length ? `
+              <div class="duty-warnings">
+                <div class="duty-warnings-title">Warnings</div>
+                <ul>${ai.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>
+              </div>` : ''}
+            ${ai.advice ? `<div class="duty-advice"><b>Advice:</b> ${escapeHtml(ai.advice)}</div>` : ''}
+            <div class="duty-source-note">
+              ${source === 'icegate_live' ? '✓ Live rates from ICEGATE' : '⚠ Estimated standard rates (ICEGATE unavailable)'}
+              ${ai.data_source_note ? ' — ' + escapeHtml(ai.data_source_note) : ''}
+            </div>
+          </div>`;
+
+        const ftaHtml = `
+          <div class="duty-fta-banner ${fta.fta_applicable ? 'applicable' : 'not-applicable'}">
+            <div class="duty-fta-title">${fta.fta_applicable ? '✓ FTA Benefit Available' : 'No FTA Benefit'}</div>
+            <div>${escapeHtml(fta.note || '')}</div>
+            ${(fta.ftas || []).length ? `
+              <div class="duty-fta-list">
+                ${fta.ftas.map(f => `
+                  <div class="duty-fta-item">
+                    <b>${escapeHtml(f.name)}</b><br>
+                    ${escapeHtml(f.description)}
+                    <div class="fta-note">${escapeHtml(f.note)}</div>
+                  </div>
+                `).join('')}
+              </div>` : ''}
+          </div>`;
+
+        const tradeDefenseHtml = measures.length ? `
+          <div class="duty-trade-defense">
+            <div class="duty-trade-defense-title">⚠ Trade Defense Measures Apply (${measures.length})</div>
+            ${measures.map(m => `
+              <div class="duty-trade-defense-item">
+                <b>${escapeHtml(m.measure_type)}</b> — ${escapeHtml(m.duty_rate_percent)}% surcharge
+                ${m.product_scope ? ' on ' + escapeHtml(m.product_scope) : ''}
+                ${m.wto_notification ? ` (Notification: ${escapeHtml(m.wto_notification)})` : ''}
+              </div>
+            `).join('')}
+          </div>` : '';
+
+        const row = (label, rate, amount, showRate = true) => `
+          <tr>
+            <td>${escapeHtml(label)}</td>
+            <td>${showRate ? escapeHtml(rate) + '%' : ''}</td>
+            <td>${formatINR(amount)}</td>
+          </tr>`;
+
+        const breakdownHtml = `
+          <div class="duty-breakdown">
+            <div class="duty-breakdown-title">14-Step Duty Cascade</div>
+            <table class="duty-table">
+              <tbody>
+                ${row('CIF Value', '', b.cif_value, false)}
+                ${row('Landing Charges', '1', b.landing_charges)}
+                ${row('Assessable Value', '', b.assessable_value, false)}
+                ${row('BCD', b.bcd_rate, b.bcd_amount)}
+                ${row('AIDC', b.aidc_rate, b.aidc_amount)}
+                ${row('Health Cess', b.chcess_rate, b.chcess_amount)}
+                ${row('EAIDC', b.eaidc_rate, b.eaidc_amount)}
+                ${row('Customs Subtotal', '', b.customs_subtotal, false)}
+                ${row('Social Welfare Surcharge', b.swc_rate, b.swc_amount)}
+                ${row('IGST Base', '', b.igst_base, false)}
+                ${row('IGST', b.igst_rate, b.igst_amount)}
+                ${row('Compensation Cess', b.cc_rate, b.cc_amount)}
+                <tr class="duty-total">
+                  <td>Total Duty</td><td></td><td>${formatINR(b.total_duty)}</td>
+                </tr>
+                <tr class="duty-landed">
+                  <td>Effective Rate</td><td></td><td>${(b.effective_rate ?? 0)}%</td>
+                </tr>
+                <tr class="duty-landed">
+                  <td>Total Landed Cost</td><td></td><td>${formatINR(b.total_landed_cost)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>`;
+
+        dutyEls.results.innerHTML = summaryHtml + ftaHtml + tradeDefenseHtml + breakdownHtml;
+        dutyEls.results.classList.remove('hidden');
+      }
+    })();
   </script>
 </body>
 

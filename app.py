@@ -22,6 +22,12 @@ from dotenv import load_dotenv
 from rag_search import chat_with_context, call_gemini
 from auth import create_user, verify_user, issue_token, require_auth
 
+from duty_calculator.calculator import DutyRates, calculate_duty
+from duty_calculator.scraper import fetch_duty_structure, COUNTRIES
+from duty_calculator.fta_service import check_fta_eligibility
+from duty_calculator.ai_service import classify_product, generate_summary
+from duty_calculator.db import get_duty_db
+
 # Pre-import the scrape-pipeline modules HERE, at real startup, against the
 # real console stdout — NOT lazily inside run_full_pipeline(). project.py has
 # a one-time top-level check (`sys.stdout.encoding.lower()`, same pattern as
@@ -817,6 +823,256 @@ def stats():
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Duty Calculator (ported from ICEDutyAI)
+# ─────────────────────────────────────────────────────────────────────────────
+# Read-only reference lookups (countries, FTA rules, trade-defense measures,
+# CUSTADA baseline rates) are left open like /api/search and /api/notification
+# below. /api/duty/calculate and /api/duty/classify call out to Gemini (and,
+# for /calculate, scrape ICEGATE live) so they're rate-limited the same way
+# /api/chat/mongo is — not @require_auth-gated, since that route also isn't.
+# If you want the calculator restricted to logged-in users only, add
+# @require_auth to /api/duty/calculate and /api/duty/classify below.
+
+@app.route("/api/duty/countries", methods=["GET"])
+def duty_countries():
+    """Supported country codes for FTA / ICEGATE lookups."""
+    return jsonify({
+        "countries": [{"code": code, "name": name} for code, name in COUNTRIES.items()]
+    })
+
+
+@app.route("/api/duty/classify", methods=["POST"])
+@limiter.limit(os.getenv("RATE_LIMIT_DUTY_CLASSIFY", "20 per hour"))
+def duty_classify():
+    """AI-powered product description -> suggested 8-digit CTH codes."""
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        description = (data.get("description") or "").strip()
+        country = data.get("country", "ALL")
+
+        if len(description) < 3:
+            return jsonify({"error": "description must be at least 3 characters"}), 400
+
+        result = classify_product(description, country)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Classification failed: {e}"}), 500
+
+
+@app.route("/api/duty/duty-structure", methods=["GET"])
+def duty_structure():
+    """Fetch live duty rates from ICEGATE for a CTH code (falls back to
+    standard estimated rates if ICEGATE is unreachable/blocked)."""
+    cth = re.sub(r"\D", "", request.args.get("cth", ""))
+    country = request.args.get("country", "ALL")
+
+    if len(cth) != 8:
+        return jsonify({"error": "cth must be an 8-digit CTH code"}), 400
+
+    try:
+        result = fetch_duty_structure(cth, country)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Failed to fetch duty structure: {e}"}), 500
+
+
+@app.route("/api/duty/fta-check", methods=["GET"])
+def duty_fta_check():
+    """Check FTA eligibility for a CTH code + country of origin."""
+    cth = re.sub(r"\D", "", request.args.get("cth", ""))
+    country = request.args.get("country", "")
+
+    if len(cth) != 8:
+        return jsonify({"error": "cth must be an 8-digit CTH code"}), 400
+    if not country:
+        return jsonify({"error": "country is required"}), 400
+
+    try:
+        return jsonify(check_fta_eligibility(cth, country))
+    except Exception as e:
+        return jsonify({"error": f"FTA check failed: {e}"}), 500
+
+
+@app.route("/api/duty/trade-defense/<hs_code>", methods=["GET"])
+def duty_trade_defense(hs_code):
+    """Applicable anti-dumping (ADD), countervailing (CVD), and safeguard
+    measures for an HS code + country of origin.
+
+    NOTE: the underlying data's HS ranges are chapter-wide (e.g. a single
+    "28010000-38249900" range covers dozens of unrelated chemical products),
+    so several measures can legitimately match one HS code even though only
+    one of them is actually about that specific product. Because of that we
+    do NOT sum duty_rate_percent across matches into one "total surcharge" —
+    that would silently add up mutually-exclusive products' rates into a
+    meaningless number. Each measure is returned with its own product_scope
+    so the caller/UI can show them as "possible matches to verify", not as
+    a single additive duty.
+    """
+    country = request.args.get("country", "ALL")
+    try:
+        db = get_duty_db()
+        measures = db.get_trade_defense_measures(hs_code, country)
+        return jsonify({
+            "hs_code": re.sub(r"\D", "", hs_code).ljust(8, "0")[:8],
+            "country": country,
+            "applicable_measures": measures,
+            "measure_count": len(measures),
+            "note": (
+                "Each measure targets a specific product (see product_scope on "
+                "each entry) — verify which one actually matches your product "
+                "before assuming it applies. Rates are not additive across "
+                "measures."
+            ) if len(measures) > 1 else None,
+        })
+    except Exception as e:
+        return jsonify({"error": f"Trade defense lookup failed: {e}"}), 500
+
+
+@app.route("/api/duty/hs-lookup/<hs_code>", methods=["GET"])
+def duty_hs_lookup(hs_code):
+    """CUSTADA baseline rates for an HS code (cross-check / fallback
+    alongside the live ICEGATE scrape)."""
+    try:
+        db = get_duty_db()
+        info = db.get_hs_code_info(hs_code)
+        if not info:
+            return jsonify({"error": f"HS code {hs_code} not found"}), 404
+        return jsonify({
+            "hs_code": info["hs_8digit"],
+            "chapter": info["chapter"],
+            "description": info["description"],
+            "custada_rates": {
+                "bcd": info.get("custada_bcd"),
+                "aidc": info.get("custada_aidc"),
+                "igst": info.get("custada_igst"),
+                "swc": info.get("custada_swc"),
+                "cc": info.get("custada_cc"),
+                "edition": info.get("custada_edition"),
+            },
+        })
+    except Exception as e:
+        return jsonify({"error": f"HS lookup failed: {e}"}), 500
+
+
+@app.route("/api/duty/hs-search", methods=["GET"])
+def duty_hs_search():
+    """Search the CUSTADA HS code catalog by description."""
+    q = request.args.get("q", "").strip()
+    limit = min(int(request.args.get("limit", 20) or 20), 100)
+
+    if len(q) < 2:
+        return jsonify({"error": "q must be at least 2 characters"}), 400
+
+    try:
+        db = get_duty_db()
+        results = db.search_hs_codes(q, limit=limit)
+        return jsonify({
+            "query": q,
+            "count": len(results),
+            "results": [
+                {"hs_code": r["hs_8digit"], "chapter": r["chapter"],
+                 "description": r["description"], "bcd": r.get("custada_bcd")}
+                for r in results
+            ],
+        })
+    except Exception as e:
+        return jsonify({"error": f"HS search failed: {e}"}), 500
+
+
+@app.route("/api/duty/calculate", methods=["POST"])
+@limiter.limit(os.getenv("RATE_LIMIT_DUTY_CALCULATE", "20 per hour"))
+def duty_calculate():
+    """
+    Full duty calculation pipeline:
+      1. Fetch live duty rates from ICEGATE (falls back to estimates)
+      2. Run the 14-step duty cascade
+      3. Check FTA eligibility
+      4. Check applicable trade defense (ADD/CVD/Safeguard)
+      5. Generate an AI plain-English summary (Gemini)
+
+    Body: { "cth": "39076190", "country": "USA", "cif_value": 500000, "quantity": null }
+    """
+    try:
+        data = request.get_json(force=True, silent=True) or {}
+        cth = re.sub(r"\D", "", str(data.get("cth", "")))
+        country = data.get("country", "ALL")
+        cif_value = data.get("cif_value")
+        quantity = data.get("quantity")
+
+        if len(cth) != 8:
+            return jsonify({"error": "cth must be an 8-digit CTH code"}), 400
+        try:
+            cif_value = float(cif_value)
+            assert cif_value > 0
+        except (TypeError, ValueError, AssertionError):
+            return jsonify({"error": "cif_value must be a positive number"}), 400
+
+        # Step 1: duty structure (live ICEGATE, or fallback estimates)
+        duty_data = fetch_duty_structure(cth, country)
+        rates_dict = duty_data.get("rates", {})
+
+        # Step 2: cascade calculation
+        rates = DutyRates(
+            bcd=rates_dict.get("bcd_effective", 10.0),
+            aidc=rates_dict.get("aidc_effective", 0.0),
+            chcess=rates_dict.get("chcess", 0.0),
+            eaidc=rates_dict.get("eaidc", 0.0),
+            swc=rates_dict.get("swc", 10.0),
+            igst=rates_dict.get("igst", 18.0),
+            cc=rates_dict.get("cc", 0.0),
+        )
+        breakup = calculate_duty(cif_value=cif_value, rates=rates, quantity=quantity)
+        breakup_dict = breakup.to_dict()
+
+        # Step 3: FTA eligibility
+        fta_info = check_fta_eligibility(cth, country)
+
+        # Step 4: trade defense measures
+        db = get_duty_db()
+        trade_defense_measures = db.get_trade_defense_measures(cth, country)
+
+        # Step 5: AI summary
+        ai_summary = generate_summary(
+            cth=cth,
+            description=duty_data.get("description", f"Product CTH {cth}"),
+            country=country,
+            cif_value=cif_value,
+            breakup=breakup_dict,
+            fta_info=fta_info,
+            source=duty_data.get("source", "fallback_estimated"),
+        )
+
+        # Audit trail
+        db.save_calculation(
+            hs_code=cth, origin_country=country, cif_value=cif_value,
+            rates_source=duty_data.get("source", "fallback_estimated"),
+            total_duty=breakup_dict["total_duty"],
+            effective_rate=breakup_dict["effective_rate"],
+            user_email=getattr(request, "user_email", None),
+        )
+
+        return jsonify({
+            "duty_structure": duty_data,
+            "calculation": breakup_dict,
+            "fta": fta_info,
+            "trade_defense_measures": trade_defense_measures,
+            "ai_summary": ai_summary,
+        })
+
+    except Exception as e:
+        return jsonify({"error": f"Calculation failed: {e}"}), 500
+
+
+@app.route("/api/duty/db-stats", methods=["GET"])
+def duty_db_stats():
+    """Duty calculator reference-data stats (HS codes, trade defense measures, etc)."""
+    try:
+        return jsonify(get_duty_db().get_db_stats())
+    except Exception as e:
+        return jsonify({"error": f"DB stats failed: {e}"}), 500
 
 
 # ─────────────────────────────────────────────────────────────────────────────

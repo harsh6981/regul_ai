@@ -4,6 +4,7 @@ Flask-Limiter
 waitress
 
 requests
+cachetools
 pandas
 openpyxl
 
