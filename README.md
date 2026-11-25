@@ -255,12 +255,3 @@ All retrieved context is passed to **Gemini 2.5 Flash** with a system prompt spe
 - [ ] User authentication & saved queries
 - [ ] Deployment to cloud (Render / Railway / GCP)
 
-## 📄 License
-
-This project is for educational and research purposes. CBIC data is publicly available government information.
-
----
-
-<p align="center">
-  Built with ❤️ for Indian trade compliance
-</p>
