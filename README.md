@@ -100,7 +100,7 @@ regul_ai/
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/regul_ai.git
+git clone https://github.com/harsh6981/regul_ai.git
 cd regul_ai/chat_bot
 
 python -m venv venv

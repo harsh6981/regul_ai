@@ -1,0 +1,21 @@
+# Environment & secrets
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Downloaded data (too large for git)
+CBIC_ALL_PDFS/
+cbic_master.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

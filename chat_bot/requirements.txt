@@ -1,0 +1,19 @@
+# Web server
+flask
+flask-cors
+
+# Scraper (project.py)
+requests
+pandas
+openpyxl
+
+# Mongo + env
+pymongo
+python-dotenv
+
+# PDF text extraction (mongo_pipeline.py)
+pymupdf
+
+# LLM (Gemini, via native google-genai SDK) + RAG pipeline
+google-genai
+sentence-transformers
